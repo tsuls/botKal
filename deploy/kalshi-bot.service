@@ -1,0 +1,23 @@
+[Unit]
+Description=Kalshi Flip Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botkal
+WorkingDirectory=/opt/botkal
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/botkal/venv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+# Cap restarts so a persistent crash doesn't spin forever
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+# Keep logs in journald (view with: journalctl -u kalshi-bot -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
