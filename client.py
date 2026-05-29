@@ -87,13 +87,52 @@ class KalshiClient:
 
     def get_active_btc_markets(self) -> list:
         """Fetch open 15-min BTC markets sorted by close time."""
+        # Kalshi's 15-min BTC series ticker — verify at:
+        # https://api.kalshi.com/trade-api/v2/series and look for BTC 15-min
+        # Common values seen: "KXBTC", "BTCX" — update BTC_SERIES below if wrong
+        BTC_SERIES = "KXBTC"
         data = self._get("/markets", params={
             "status": "open",
-            "series_ticker": "KXBTC",
-            "limit": 20,
+            "series_ticker": BTC_SERIES,
+            "limit": 100,
         })
         markets = data.get("markets", [])
-        return sorted(markets, key=lambda m: m.get("close_time", ""))
+
+        # Filter to 15-minute duration markets only (exclude hourly/daily)
+        # Kalshi market titles typically say "15-minute" or have a 15-min window
+        fifteen_min = [
+            m for m in markets
+            if _is_15min_market(m)
+        ]
+
+        if not fifteen_min:
+            # Fallback: return all BTC markets so you can inspect what's available
+            import logging
+            logging.getLogger(__name__).warning(
+                f"No 15-min markets found under series '{BTC_SERIES}'. "
+                f"Got {len(markets)} total markets. Check series ticker. "
+                f"Tickers: {[m.get('ticker') for m in markets[:5]]}"
+            )
+            return sorted(markets, key=lambda m: m.get("close_time", ""))
+
+        return sorted(fifteen_min, key=lambda m: m.get("close_time", ""))
+
+
+def _is_15min_market(market: dict) -> bool:
+    """Detect 15-minute BTC markets by title or ticker pattern."""
+    title = (market.get("title") or "").lower()
+    subtitle = (market.get("subtitle") or "").lower()
+    ticker = (market.get("ticker") or "").lower()
+
+    if "15" in title or "15-min" in title or "15 min" in title:
+        return True
+    if "15" in subtitle:
+        return True
+    # Kalshi tickers for 15-min often end in HH:MM with 15-min intervals
+    # e.g. KXBTC-25MAY2906:15 vs KXBTC-25MAY29 (daily)
+    if ":" in ticker:
+        return True
+    return False
 
     # --- Orders ---
 
